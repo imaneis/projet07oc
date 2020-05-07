@@ -1,5 +1,7 @@
 # bilemo
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/0c1a501c649247be97d14cf6b48eba9a)](https://app.codacy.com/manual/imaneis/projet07oc?utm_source=github.com&utm_medium=referral&utm_content=imaneis/projet07oc&utm_campaign=Badge_Grade_Dashboard)
+
 ## About
 
 A web service exposing an API.
