@@ -210,27 +210,14 @@ class ConsumerController extends FOSRestController
      *     type="string",
      *     description="Authorization token required to create resources"
      * )
-     * @SWG\Parameter(
-     *     name="fullname",
+     * * @SWG\Parameter(
+     *     name="Add user",
      *     in="body",
-     *     description="user fullname",
-     *     required=true,
-     *     @SWG\Schema(type="string")
+     *     @Model(type=ConsumerFormType::class),
+     *     @SWG\Schema(type="object")
+     *     )  
      * )
-     * @SWG\Parameter(
-     *     name="age",
-     *     in="body",
-     *     description="the user age",
-     *     required=true,
-     *     @SWG\Schema(type="integer")
-     * )
-     * @SWG\Parameter(
-     *     name="city",
-     *     in="body",
-     *     description="the user city",
-     *     required=true,
-     *     @SWG\Schema(type="string")
-     * )
+     * 
      * @SWG\Response(
      *     response=201,
      *     description="New user created successfully"
