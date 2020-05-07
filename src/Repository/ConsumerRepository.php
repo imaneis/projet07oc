@@ -5,6 +5,7 @@ namespace App\Repository;
 use App\Entity\Consumer;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Common\Persistence\ManagerRegistry;
+use Doctrine\ORM\Tools\Pagination\Paginator;
 
 /**
  * @method Consumer|null find($id, $lockMode = null, $lockVersion = null)
@@ -19,32 +20,15 @@ class ConsumerRepository extends ServiceEntityRepository
         parent::__construct($registry, Consumer::class);
     }
 
-    // /**
-    //  * @return Consumer[] Returns an array of Consumer objects
-    //  */
-    /*
-    public function findByExampleField($value)
+    public function findAllPaginated(int $page = 0, int $nbElementPerPage = 100, $name)
     {
-        return $this->createQueryBuilder('c')
-            ->andWhere('c.exampleField = :val')
-            ->setParameter('val', $value)
-            ->orderBy('c.id', 'ASC')
-            ->setMaxResults(10)
-            ->getQuery()
-            ->getResult()
-        ;
-    }
-    */
+        $q = $this->createQueryBuilder('b')
+            ->where('b.clientName = :name')
+            ->setParameter('name', $name)
+            ->orderBy('b.id')
+            ->setFirstResult($page * $nbElementPerPage)
+            ->setMaxResults($nbElementPerPage);
 
-    /*
-    public function findOneBySomeField($value): ?Consumer
-    {
-        return $this->createQueryBuilder('c')
-            ->andWhere('c.exampleField = :val')
-            ->setParameter('val', $value)
-            ->getQuery()
-            ->getOneOrNullResult()
-        ;
+        return new Paginator($q);
     }
-    */
 }

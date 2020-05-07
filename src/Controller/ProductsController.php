@@ -2,29 +2,24 @@
 
 namespace App\Controller;
 
-use Doctrine\Common\Persistence\ObjectRepository;
-use Psr\Cache\CacheItemInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use FOS\RestBundle\Controller\FOSRestController;
 use FOS\RestBundle\Controller\Annotations as Rest;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
 use App\Entity\Products;
-use FOS\RestBundle\Context\Context;
 use FOS\RestBundle\View\View;
 use Nelmio\ApiDocBundle\Annotation\Model;
 use Swagger\Annotations as SWG;
-use Symfony\Contracts\Cache\CallbackInterface;
-use Symfony\Component\Cache\Adapter\FilesystemAdapter;
 use Doctrine\ORM\EntityManagerInterface;
 use App\Repository\ProductsRepository;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Component\Serializer\SerializerInterface;
 
 
 class ProductsController extends FOSRestController
 {
 
-  const LIMIT_DEFAULT = 100;
+    const LIMIT_DEFAULT = 3;
 
     /**
      * @var EntityManagerInterface
@@ -35,19 +30,37 @@ class ProductsController extends FOSRestController
      */
     private $ProductsRepository;
 
-    public function __construct(EntityManagerInterface $entityManager, ProductsRepository $ProductsRepository)
+    /** @var SerializerInterface */
+    private $serializer;
+
+    /**
+     *  constructor.
+     * @param EntityManagerInterface $entityManager
+     * @param ProductsRepository $ProductsRepository
+     * @param SerializerInterface $serializer
+     */
+    public function __construct(EntityManagerInterface $entityManager, ProductsRepository $ProductsRepository, SerializerInterface $serializer)
     {
         $this->entityManager = $entityManager;
         $this->ProductsRepository = $ProductsRepository;
+        $this->serializer = $serializer;
     }
 
 
-    public function paginationInfo($page, $limit)
+    public function paginationInfo($page, $limit, $nbPages = null)
     {
         $paginationInfo = [];
 
         if ($page !== 0) {
             $paginationInfo['page'] = $page;
+        }
+
+        if ($page < 0) {
+            $paginationInfo['page'] = $page + 1;
+        }
+
+        if ($page + 1 > $nbPages) {
+            $paginationInfo['page'] = $page - 1;
         }
 
         if ($limit !== self::LIMIT_DEFAULT) {
@@ -60,7 +73,7 @@ class ProductsController extends FOSRestController
 
     /**
    * Lists all Products.
-   * @Rest\Get(path = "/api/products",name = "list_products")
+   * @Rest\Get(path = "/api/products", name = "list_products")
    *
    * @return Response
      *
@@ -92,35 +105,33 @@ class ProductsController extends FOSRestController
     $limit = intval($request->query->get('limit', self::LIMIT_DEFAULT));
 
     $products = $this->ProductsRepository->findAllPaginated($page, $limit);
-
     $nbPages = ceil(count($products) / $limit);
 
-     if (!$products) {
-          return new View("there are no products for the moment..", Response::HTTP_NOT_FOUND);
+     if ($nbPages == 0) {
+          return new View("There are no products for the moment", Response::HTTP_NOT_FOUND);
      }
 
      return $this->json([
-      $products,
+      'Products' => $products,
       '_link' => [
           "self" => [
-              "href" => $this->generateUrl('list_products', $this->paginationInfo($page, $limit), UrlGeneratorInterface::ABSOLUTE_URL)
+              "href" => $this->generateUrl('list_products', $this->paginationInfo($page, $limit, $nbPages), UrlGeneratorInterface::ABSOLUTE_URL)
           ],
           "first" => [
-              "href" => $this->generateUrl('list_products', $this->paginationInfo(0, $limit), UrlGeneratorInterface::ABSOLUTE_URL)
+              "href" => $this->generateUrl('list_products', $this->paginationInfo(0, $limit, $nbPages), UrlGeneratorInterface::ABSOLUTE_URL)
           ],
           "prev" => [
-              "href" => $this->generateUrl('list_products', $this->paginationInfo($page - 1, $limit), UrlGeneratorInterface::ABSOLUTE_URL)
+              "href" => $this->generateUrl('list_products', $this->paginationInfo($page - 1, $limit, $nbPages), UrlGeneratorInterface::ABSOLUTE_URL)
           ],
           "next" => [
-              "href" => $this->generateUrl('list_products', $this->paginationInfo($page + 1, $limit), UrlGeneratorInterface::ABSOLUTE_URL)
+              "href" => $this->generateUrl('list_products', $this->paginationInfo($page + 1, $limit, $nbPages), UrlGeneratorInterface::ABSOLUTE_URL)
           ],
           "last" => [
-              "href" => $this->generateUrl('list_products', $this->paginationInfo($nbPages, $limit), UrlGeneratorInterface::ABSOLUTE_URL)
+              "href" => $this->generateUrl('list_products', $this->paginationInfo($nbPages - 1, $limit, $nbPages), UrlGeneratorInterface::ABSOLUTE_URL)
           ]
       ]
-  ], 200, [], ['groups' => ['list']]);
+  ], 200, []);
 
-   
 
   }
 
@@ -163,7 +174,7 @@ class ProductsController extends FOSRestController
     $product = $repository->find($id);
 
      if (!$product) {
-          return new View("this product does not exisit..", Response::HTTP_NOT_FOUND);
+          return new View("This product does not exist", Response::HTTP_NOT_FOUND);
      }
 
     return $this->handleView($this->view($product));
