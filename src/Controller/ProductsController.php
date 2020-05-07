@@ -16,10 +16,46 @@ use Nelmio\ApiDocBundle\Annotation\Model;
 use Swagger\Annotations as SWG;
 use Symfony\Contracts\Cache\CallbackInterface;
 use Symfony\Component\Cache\Adapter\FilesystemAdapter;
+use Doctrine\ORM\EntityManagerInterface;
+use App\Repository\ProductsRepository;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 
 class ProductsController extends FOSRestController
 {
+
+  const LIMIT_DEFAULT = 100;
+
+    /**
+     * @var EntityManagerInterface
+     */
+    private $entityManager;
+    /**
+     * @var ProductsRepository
+     */
+    private $ProductsRepository;
+
+    public function __construct(EntityManagerInterface $entityManager, ProductsRepository $ProductsRepository)
+    {
+        $this->entityManager = $entityManager;
+        $this->ProductsRepository = $ProductsRepository;
+    }
+
+
+    public function paginationInfo($page, $limit)
+    {
+        $paginationInfo = [];
+
+        if ($page !== 0) {
+            $paginationInfo['page'] = $page;
+        }
+
+        if ($limit !== self::LIMIT_DEFAULT) {
+            $paginationInfo['limit'] = $limit;
+        }
+
+        return $paginationInfo;
+    }
 
 
     /**
@@ -50,20 +86,41 @@ class ProductsController extends FOSRestController
      * )
      
    */
-  public function getProductsAction()
+  public function getProductsAction(Request $request)
   {
-    $repository = $this->getDoctrine()->getRepository(Products::class);
-    $products = $repository->findall();
+    $page = intval($request->query->get('page', null));
+    $limit = intval($request->query->get('limit', self::LIMIT_DEFAULT));
+
+    $products = $this->ProductsRepository->findAllPaginated($page, $limit);
+
+    $nbPages = ceil(count($products) / $limit);
+
      if (!$products) {
           return new View("there are no products for the moment..", Response::HTTP_NOT_FOUND);
      }
 
-    $view = View::create();
-    $context = new Context();
-    $context->setGroups(['list']);
-    $view->setContext($context);
-    $view->setData($products);
-    return $this->handleView($view);
+     return $this->json([
+      $products,
+      '_link' => [
+          "self" => [
+              "href" => $this->generateUrl('list_products', $this->paginationInfo($page, $limit), UrlGeneratorInterface::ABSOLUTE_URL)
+          ],
+          "first" => [
+              "href" => $this->generateUrl('list_products', $this->paginationInfo(0, $limit), UrlGeneratorInterface::ABSOLUTE_URL)
+          ],
+          "prev" => [
+              "href" => $this->generateUrl('list_products', $this->paginationInfo($page - 1, $limit), UrlGeneratorInterface::ABSOLUTE_URL)
+          ],
+          "next" => [
+              "href" => $this->generateUrl('list_products', $this->paginationInfo($page + 1, $limit), UrlGeneratorInterface::ABSOLUTE_URL)
+          ],
+          "last" => [
+              "href" => $this->generateUrl('list_products', $this->paginationInfo($nbPages, $limit), UrlGeneratorInterface::ABSOLUTE_URL)
+          ]
+      ]
+  ], 200, [], ['groups' => ['list']]);
+
+   
 
   }
 
@@ -103,33 +160,14 @@ class ProductsController extends FOSRestController
  public function getProductAction($id)
   {
     $repository = $this->getDoctrine()->getRepository(Products::class);
-    $cache = new FilesystemAdapter();
-    $product = $cache->get('product-'.$id, new ProductCacheCallable($repository, $id));
+    $product = $repository->find($id);
+
      if (!$product) {
           return new View("this product does not exisit..", Response::HTTP_NOT_FOUND);
      }
 
     return $this->handleView($this->view($product));
+  
   }
 
-}
-
-class ProductCacheCallable implements CallbackInterface
-{
-    private $repository;
-    private $id;
-
-    function __construct(ObjectRepository $repository, int $id)
-    {
-        $this->repository = $repository;
-        $this->id = $id;
-    }
-
-    /**
-     * @inheritDoc
-     */
-    public function __invoke(CacheItemInterface $item, bool &$save)
-    {
-        return $this->repository->find($this->id);
-    }
 }

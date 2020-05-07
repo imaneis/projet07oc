@@ -107,8 +107,7 @@ class ConsumerController extends FOSRestController
   public function getUserAction($id)
   {
     $repository = $this->getDoctrine()->getRepository(Consumer::class);
-    $cache = new FilesystemAdapter();
-    $consumer = $cache->get('consumer-'.$id, new ConsumerCacheCallable($repository, $id));
+    $consumer = $repository->find($id);
 
      if (!$consumer) {
           return new View("this user does not exisit..", Response::HTTP_NOT_FOUND);
@@ -243,25 +242,4 @@ class ConsumerController extends FOSRestController
 
     }
 
-}
-
-
-class ConsumerCacheCallable implements CallbackInterface
-{
-    private $repository;
-    private $id;
-
-    function __construct(ObjectRepository $repository, int $id)
-    {
-        $this->repository = $repository;
-        $this->id = $id;
-    }
-
-    /**
-     * @inheritDoc
-     */
-    public function __invoke(CacheItemInterface $item, bool &$save)
-    {
-        return $this->repository->find($this->id);
-    }
 }

@@ -4,16 +4,17 @@ nelmio_api_doc:
             title: Api Doc
             description: This is Bilemo Api Doc!
             version: 1.0.0
-        host: http://127.0.0.1:8000/api/doc
+        host: 127.0.0.1:8000
         schemes: [http, https]
         securityDefinitions:
-            Bearer:
-                type: apiKey
-                description: 'Value: Bearer {jwt}'
-                name: Authorization
-                in: header
+             password:
+                 type: oauth2
+                 description: provides a password flow access_token
+                 flow: password
+                 tokenUrl: /oauth/v2/token
+                 name: Authorization
         security:
-            - Bearer: []
+            - password: []
     areas: # to filter documented areas
         path_patterns:
             - ^/api(?!/doc$) # Accepts routes under /api except /api/doc
