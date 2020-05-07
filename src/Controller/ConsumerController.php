@@ -12,6 +12,13 @@ use App\Entity\User;
 use FOS\RestBundle\Context\Context;
 use FOS\RestBundle\View\View;
 use App\Form\ConsumerFormType;
+use Nelmio\ApiDocBundle\Annotation\Model;
+use Swagger\Annotations as SWG;
+use Symfony\Contracts\Cache\CallbackInterface;
+use Symfony\Component\Cache\Adapter\FilesystemAdapter;
+use Doctrine\Common\Persistence\ObjectRepository;
+use Psr\Cache\CacheItemInterface;
+
 
 class ConsumerController extends FOSRestController
 {
@@ -20,15 +27,34 @@ class ConsumerController extends FOSRestController
    * @Rest\Get(path = "/api/users")
    *
    * @return Response
+   * @SWG\Tag(name="consumers")
+    * @SWG\Parameter(
+     *     name="Authorization",
+     *     in="header",
+     *     required=true,
+     *     type="string",
+     *     description="Authorization token required to access resources"
+     * )
+     * @SWG\Response(
+     *     response=200,
+     *     description="Get the user list with success",
+    @SWG\Schema(
+     *         type="array",
+     *         @SWG\Items(ref=@Model(type=Consumer::class, groups={"list"}))
+     *     )
+     * )
+     * @SWG\Response(
+     *     response=401,
+     *     description="Need a valid token to access this request"
+     * )
    */
   public function getUsersAction()
   {
     $repository = $this->getDoctrine()->getRepository(Consumer::class);
     $user = $this->get('security.token_storage')->getToken()->getUser()->getUsername();
     $consumer = $repository->findBy(['clientName' =>  $user ]);
-
      if (!$consumer) {
-          return new View("there are no users for the moment..", Response::HTTP_NOT_FOUND);
+          return new View("you dont have any user linked to your account for the moment..", Response::HTTP_NOT_FOUND);
      }
 
     $view = View::create();
@@ -45,11 +71,44 @@ class ConsumerController extends FOSRestController
    * @Rest\Get(path = "/api/user/{id}",name = "user_details", requirements={"id"="\d+"})
    *
    * @return Response
+   * @SWG\Tag(name="consumers")
+     * @SWG\Parameter(
+     *     name="Authorization",
+     *     in="header",
+     *     required=true,
+     *     type="string",
+     *     description="Authorization token required to access resources"
+     * )
+     * @SWG\Parameter(
+     *     name="id",
+     *     in="path",
+     *     type="integer",
+     *     description="The unique user identifier",
+     *     required=true
+     * )
+     * @SWG\Response(
+     *     response=200,
+     *     description="Get the detail of a user with success",
+      @SWG\Schema(
+     *         type="array",
+     *         @SWG\Items(ref=@Model(type=Consumer::class, groups={"detail"}))
+     *     )
+     * )
+     * )
+     * @SWG\Response(
+     *     response=401,
+     *     description="Need a valide token to access this request"
+     * )
+     * @SWG\Response(
+     *     response=404,
+     *     description="No user found"
+     * )
    */
   public function getUserAction($id)
   {
     $repository = $this->getDoctrine()->getRepository(Consumer::class);
-    $consumer = $repository->find($id);
+    $cache = new FilesystemAdapter();
+    $consumer = $cache->get('consumer-'.$id, new ConsumerCacheCallable($repository, $id));
 
      if (!$consumer) {
           return new View("this user does not exisit..", Response::HTTP_NOT_FOUND);
@@ -74,6 +133,47 @@ class ConsumerController extends FOSRestController
    * @Rest\Post(path = "/api/user")
    *
    * @return Response
+   * @SWG\Tag(name="consumers")
+   * @SWG\Parameter(
+     *     name="Authorization",
+     *     in="header",
+     *     required=true,
+     *     type="string",
+     *     description="Authorization token required to create resources"
+     * )
+     * @SWG\Parameter(
+     *     name="fullname",
+     *     in="body",
+     *     description="user fullname",
+     *     required=true,
+     *     @SWG\Schema(type="string")
+     * )
+     * @SWG\Parameter(
+     *     name="age",
+     *     in="body",
+     *     description="the user age",
+     *     required=true,
+     *     @SWG\Schema(type="integer")
+     * )
+     * @SWG\Parameter(
+     *     name="city",
+     *     in="body",
+     *     description="the user city",
+     *     required=true,
+     *     @SWG\Schema(type="string")
+     * )
+     * @SWG\Response(
+     *     response=201,
+     *     description="New user create successfully"
+     * )
+     * @SWG\Response(
+     *     response=400,
+     *     description="Invalid json message received"
+     * )
+     * @SWG\Response(
+     *     response=401,
+     *     description="Need a valid token to access this request"
+     * )
    */
   public function postUserAction(Request $request)
   {
@@ -100,6 +200,33 @@ class ConsumerController extends FOSRestController
    * @Rest\Delete(path = "/api/delete/{id}", name = "delete_user")
    *
    * @return Response
+   * @SWG\Tag(name="consumers")
+     * @SWG\Parameter(
+     *     name="Authorization",
+     *     in="header",
+     *     required=true,
+     *     type="string",
+     *     description="Authorization token required to delete resources"
+     * )
+     * @SWG\Parameter(
+     *     name="id",
+     *     in="path",
+     *     type="integer",
+     *     description="The unique user identifier",
+     *     required=true
+     * )
+     * @SWG\Response(
+     *     response=200,
+     *     description="user deleted successfully"
+     * )
+     * @SWG\Response(
+     *     response=401,
+     *     description="Need a valide token to access this request"
+     * )
+     * @SWG\Response(
+     *     response=404,
+     *     description="No user found"
+     * )
    */
     public function deleteUserAction($id)
     {
@@ -116,4 +243,25 @@ class ConsumerController extends FOSRestController
 
     }
 
+}
+
+
+class ConsumerCacheCallable implements CallbackInterface
+{
+    private $repository;
+    private $id;
+
+    function __construct(ObjectRepository $repository, int $id)
+    {
+        $this->repository = $repository;
+        $this->id = $id;
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function __invoke(CacheItemInterface $item, bool &$save)
+    {
+        return $this->repository->find($this->id);
+    }
 }

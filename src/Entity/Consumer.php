@@ -73,13 +73,11 @@ class Consumer
 
     /**
      * @ORM\Column(type="integer")
-     * @Groups({"detail"})
      */
     private $clientId;
 
     /**
      * @ORM\Column(type="string", length=255)
-     * @Groups({"detail"})
      */
     private $clientName;
 
